@@ -1,10 +1,10 @@
 import os
+import base64
 from flask import Flask, request, jsonify
 from gradio_client import Client
 
 app = Flask(__name__)
 
-# NOT: Artık handle_file'a ihtiyacımız yok çünkü gradio_client dosya yolunu doğrudan işleyebilir.
 client = Client("AAAAA12344321/GardenGuard") # Gradio Space ID'nizi doğru yazdığınızdan emin olun
 
 @app.route('/')
@@ -19,28 +19,28 @@ def predict():
     file = request.files['image']
 
     try:
-        # 1. Yüklenen dosyayı Vercel'in geçici /tmp klasörüne kaydet.
-        # Bu, dosyaya sunucu içinde bir "dosya yolu" verir.
-        filepath = os.path.join("/tmp", file.filename)
-        file.save(filepath)
+        # 1. Yüklenen dosyanın içeriğini byte olarak oku (diske kaydetme).
+        image_bytes = file.read()
+        
+        # 2. Byte'ları Base64 formatına kodla.
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        # 3. Gradio API'sinin beklediği standart "data URI" formatını oluştur.
+        # file.mimetype (örn: 'image/png') dosyanın türünü belirtir.
+        data_uri = f"data:{file.mimetype};base64,{base64_image}"
 
-        # 2. client.predict fonksiyonuna artık obje değil, dosyanın yolunu ver.
+        # 4. client.predict fonksiyonuna bu data URI'ını ver.
+        # Gradio bu formatı doğrudan anlar.
         result = client.predict(
-            image=filepath,
+            image=data_uri,
             api_name="/predict"
         )
         
         return jsonify(result)
 
     except Exception as e:
-        # Olası bir hata durumunda daha detaylı loglama yapalım.
+        # Olası bir hata durumunda detaylı loglama yap.
         return jsonify({'error': str(e)}), 500
-    
-    finally:
-        # 3. (İsteğe bağlı ama iyi bir pratik) İşlem bittikten sonra geçici dosyayı sil.
-        if os.path.exists(filepath):
-            os.remove(filepath)
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000)
