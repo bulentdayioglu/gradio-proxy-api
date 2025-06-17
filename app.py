@@ -1,11 +1,15 @@
 import os
 import base64
+import requests # Yeni import
 from flask import Flask, request, jsonify
-from gradio_client import Client
 
 app = Flask(__name__)
 
-client = Client("AAAAA12344321/GardenGuard") # Gradio Space ID'nizi doğru yazdığınızdan emin olun
+# !!! ÇOK ÖNEMLİ: BU URL'Yİ KENDİ HUGGING FACE SPACE'İNİZDEN ALMALISINIZ !!!
+# Nasıl bulunur: Hugging Face'de Space sayfanıza gidin -> Sağ üstteki üç noktaya (...) tıklayın
+# -> "Embed this Space" seçeneğini seçin -> "Direct API URL" kısmındaki URL'yi kopyalayın.
+# URL genellikle /run/predict ile biter.
+GRADIO_API_URL = "https://AAAAA12344321-gardenguard.hf.space/run/predict" # KENDİ URL'NİZİ YAPIŞTIRIN
 
 @app.route('/')
 def index():
@@ -19,27 +23,35 @@ def predict():
     file = request.files['image']
 
     try:
-        # 1. Yüklenen dosyanın içeriğini byte olarak oku (diske kaydetme).
+        # Resmi Base64 data URI formatına çevir
         image_bytes = file.read()
-        
-        # 2. Byte'ları Base64 formatına kodla.
         base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        
-        # 3. Gradio API'sinin beklediği standart "data URI" formatını oluştur.
-        # file.mimetype (örn: 'image/png') dosyanın türünü belirtir.
         data_uri = f"data:{file.mimetype};base64,{base64_image}"
 
-        # 4. client.predict fonksiyonuna bu data URI'ını ver.
-        # Gradio bu formatı doğrudan anlar.
-        result = client.predict(
-            image=data_uri,
-            api_name="/predict"
-        )
+        # Hugging Face API'sinin beklediği nihai JSON payload'ını oluştur
+        payload = {
+            "data": [
+                data_uri
+            ]
+        }
         
-        return jsonify(result)
+        # Requests kütüphanesi ile doğrudan API'ye POST isteği at
+        response = requests.post(GRADIO_API_URL, json=payload)
+        
+        # Hugging Face'den gelen yanıtı kontrol et
+        response.raise_for_status()  # Eğer 2xx dışında bir yanıt varsa (4xx, 5xx), hata fırlat
+        
+        # Başarılı yanıtı olduğu gibi istemciye (Dart) geri döndür
+        return jsonify(response.json())
 
+    except requests.exceptions.HTTPError as http_err:
+        # Hugging Face'den gelen bir hata varsa (örn: 422 Unprocessable Entity)
+        return jsonify({
+            'error': f'Hugging Face API Error: {http_err}', 
+            'details': response.text
+        }), response.status_code
     except Exception as e:
-        # Olası bir hata durumunda detaylı loglama yap.
+        # Diğer beklenmedik hatalar için
         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
