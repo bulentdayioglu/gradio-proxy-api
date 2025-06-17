@@ -2,7 +2,8 @@ from flask import Flask, request, jsonify
 from gradio_client import Client, handle_file
 
 app = Flask(__name__)
-client = Client("AAAAA12344321/GardenGuard")  # Gradio Space ID ve adını yaz!
+
+client = Client("AAAAA12344321/GardenGuard")  # Gradio Space ID doğru yaz!
 
 @app.route('/')
 def index():
