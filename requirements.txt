@@ -1,3 +1,5 @@
-flask
-gradio_client
-requests
+gradio_client>=0.8.0
+flask>=2.3.0
+flask-cors>=4.0.0
+Werkzeug>=2.3.0
+requests>=2.31.0 
